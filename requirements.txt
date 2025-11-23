@@ -1,0 +1,5 @@
+# Theme Park Route Planner Requirements
+# Python 3.7+
+
+# No external dependencies required
+# The project uses only Python standard library
