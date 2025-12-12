@@ -12,7 +12,7 @@
         -   간선: 각 노드 간 이동 경로
     -   각 어트랙션의 실시간 대기시간 정보
 -   **사용자 입력**
-    -   방문객 정보 (키, 나이 등)
+    -   방문객 정보 (이름, 나이, 키)
     -   가고 싶은 어트랙션 리스트 (원하는 노드 집합)
 -   **출력**
     -   방문객 제약조건을 만족하면서
@@ -32,10 +32,10 @@
 
 ### 2.1 노드
 
--   **각 노드는 하나의 어트랙션 또는 편의시설(입구, 식당, 화장실 등)을 의미**
+-   **각 노드는 하나의 어트랙션, 공연 또는 편의시설(입구, 식당 등)을 의미**
 -   노드 `v`에 대한 속성:
     -   `id`: 0..N-1 (정수 인덱스)
-    -   `type`: attraction / entrance/ restaurant / restroom ...
+    -   `type`: entrance / attraction / restaurant / show
     -   `wait_time[v]`: 현재 또는 특정 시점에서의 예상 대기시간
     -   `constraints[v]`: 최소/최대 키, 최소/최대 연령 등의 탑승 조건
 -   사용 가능 / 불가능 처리
@@ -76,6 +76,8 @@
 
         total_cost(P) = Σ cost(vi → v{i+1})
 
+- 현재 가중치: 알파 1, 베타 1. Todo
+
 ------------------------------------------------------------------------
 
 ## 4. 사용자 입력 및 제약조건 처리
@@ -100,7 +102,7 @@
 
 ## 5. 다수 어트랙션 순회 알고리즘
 
-여기서는, 어트랙션 순서 결정 알고리즘들을 비교 대상으로 선정한다\
+어트랙션 순서 결정 알고리즘들을 비교 대상으로 선정한다\
 각 알고리즘은 노드 순서를 결정하고, 각 구간의 실제 비용은 `edge_cost`와 단일경로 알고리즘을 통해 계산한다고 가정한다
 
 ### 5.1 공통 하위 계층: 구간 비용 계산
@@ -169,34 +171,120 @@
 ## 7. 코드 구조
 
     src/
-      graph.py
-      weights.py
-      user.py
+      graph.py                 # 그래프 자료구조 및 노드 정의
+      weights.py               # 가중치 계산 함수
+      user.py                  # 사용자 프로필 및 제약조건
+      park_loader.py           # 테마파크 데이터 로더 및 실시간 API 연동
+      evaluation.py            # 성능 평가 및 메트릭 계산
+      main.py                  # 메인 실행 파일
       routing/
-        leg_shortest_path.py
-        alg_greedy_nearest.py
-        alg_greedy_2opt.py
-        alg_cheapest_insertion.py
-        alg_random_baseline.py
-      evaluation.py
-      main.py
+        __init__.py
+        shortest_path.py       # Dijkstra 기반 최단 경로 사전 계산
+        greedy_nearest.py      # 탐욕적 최근접 이웃 알고리즘
+        greedy_2opt.py         # 2-opt 지역 탐색을 적용한 탐욕 알고리즘
+        cheapest_insertion.py  # 최소 비용 삽입 휴리스틱
+        random_baseline.py     # 무작위 경로 생성 (기준선)
+
+    data/
+      everland/
+        nodes.json             # 노드 데이터 (어트랙션, 식당, 공연장 등)
+        edges.json             # 간선 데이터 (이동 경로 및 시간)
+        coords.json            # 노드 좌표 데이터
 
 ------------------------------------------------------------------------
 
-## 8. 제약사항 및 가정
+## 8. 데이터 구조 및 실시간 API 연동
+
+### 8.1 데이터 파일 구조
+
+프로젝트는 코드와 데이터를 분리하여 관리한다. 테마파크 데이터는 `data/everland/` 디렉토리에 JSON 형식으로 저장된다.
+
+#### nodes.json 구조
+```json
+{
+  "id": 157,
+  "name": "T 익스프레스",
+  "type": "attraction",
+  "zone": "European Adventure",
+  "min_height": 140,
+  "min_age": 12
+}
+```
+
+- `id`: 노드 고유 식별자
+- `name`: 노드 이름 (한글)
+- `type`: 노드 타입 (entrance, attraction, restaurant, show)
+- `zone`: 테마파크 구역
+- `min_height`, `max_height`: 키 제한 (cm)
+- `min_age`, `max_age`: 나이 제한 (세)
+
+#### edges.json 구조
+```json
+{
+  "u": 157,
+  "v": 158,
+  "move_time": 2.5
+}
+```
+
+- `u`, `v`: 연결된 노드 ID
+- `move_time`: 이동 시간 (분)
+- 무방향 간선으로 처리
+
+#### coords.json 구조
+```json
+{
+  "157": {
+    "x": 1234.5,
+    "y": 2345.6
+  }
+}
+```
+
+- 각 노드의 픽셀 좌표 (x, y)
+- 지도 시각화 및 거리 계산 참고용
+
+### 8.2 실시간 대기시간 API
+
+프로그램은 queue-times.com API를 통해 에버랜드의 실시간 대기시간 정보를 가져온다.
+
+- **API 엔드포인트**: `https://queue-times.com/parks/125/queue_times.json`
+- **호출 방식**: HTTP GET 요청 (타임아웃 3초)
+- **응답 처리**:
+  - 운영 중인 놀이기구: 실시간 대기시간 사용
+  - 운영 중단: `CLOSED_RIDE_WAIT_TIME` (999분)으로 설정
+  - API 실패 시: 기본값 사용 (어트랙션 20분, 식당 40분, 공연 20분)
+
+- **이름 매핑**: API는 영문 이름을 반환하므로 내부 ID와 매핑 필요
+  ```python
+  NAME_TO_ID = {
+      "T Express": 157,
+      "Amazon Express": 206,
+      ...
+  }
+  ```
+
+### 8.3 그래프 연결성 보강
+
+JSON 데이터에서 누락된 연결을 보강하기 위해 `add_missing_connections()` 함수가 가상의 다리를 추가한다. 이는 그래프의 연결성을 보장하여 모든 노드 간 경로 탐색이 가능하도록 한다.
+
+------------------------------------------------------------------------
+
+## 9. 제약사항 및 가정
 
 -   그래프 구조는 고정
 -   move_time ≥ 0 (Dijkstra 사용 가능을 위함)
 -   wait_time은 실행 시점에서 고정된 값으로 근사
 -   방문객의 조건은 이진으로 판단
 -   규모 K는 Greedy/Local Search가 적용 가능하다고 가정
+-   실시간 API가 실패해도 기본값으로 대체하여 프로그램 실행 보장
 
 ------------------------------------------------------------------------
 
-## 9. 실행 환경
+## 10. 실행 환경
 
 -   언어/런타임: Python 3.7+
--   주요 라이브러리: Python 표준 라이브러리만 사용 (외부 의존성 없음)
+-   주요 라이브러리: requests (실시간 API 호출용)
 -   개발/실행 OS: Windows
 -   하드웨어 환경:
     -   CPU: Intel Core i5 13600KF
@@ -205,18 +293,19 @@
 
 ------------------------------------------------------------------------
 
-## 10. 설치 및 실행 방법
+## 11. 설치 및 실행 방법
 
-### 10.1 의존성 설치
-
-이 프로젝트는 Python 표준 라이브러리만 사용하므로 별도의 외부 패키지 설치가 필요하지 않음
+### 11.1 의존성 설치
 
 ```bash
 # Python 3.7 이상 버전이 필요합니다
 python --version
+
+# requests 라이브러리 설치
+pip install requests
 ```
 
-### 10.2 실행 방법
+### 11.2 실행 방법
 
 ```bash
 # src 디렉토리로 이동
@@ -226,46 +315,153 @@ cd src
 python main.py
 ```
 
-### 10.3 실행 결과
+프로그램 실행 시 다음 정보를 입력해야 한다:
+- 이름 (Name)
+- 나이 (Age): 어트랙션 나이 제한 필터링에 사용
+- 키 (Height, cm): 어트랙션 키 제한 필터링에 사용
+
+### 11.3 실행 결과
 
 프로그램을 실행하면 다음과 같은 결과를 확인할 수 있다:
 
-1. 테마파크 그래프 생성 정보
-2. 사용자 프로필 및 제약조건
-3. 4가지 알고리즘의 실행 결과 비교
-    - Greedy Nearest-Next
-    - Greedy + 2-Opt
-    - Cheapest Insertion
-    - Random Baseline
-4. 성능 메트릭 비교 테이블
-    - 총 비용 (Total Cost)
-    - 이동 시간 (Move Time)
-    - 대기 시간 (Wait Time)
-    - 실행 시간 (Exec Time)
-    - 메모리 사용량 (Memory)
-5. 각 알고리즘이 생성한 경로 상세 정보
+1. **테마파크 그래프 생성**
+   - 실시간 대기시간 API 호출 (queue-times.com)
+   - 노드 및 간선 정보 로드
+
+2. **사용자 프로필 생성**
+   - 방문객 정보 입력 (이름, 나이, 키)
+
+3. **방문 희망 어트랙션 필터링**
+   - 운영 상태에 따른 필터링 (운영 중단 어트랙션 제외)
+   - 사용자 제약조건에 따른 필터링 (키/나이 제한)
+   - 각 필터링 단계별 상세 정보 출력
+
+4. **최단 경로 사전 계산**
+   - Dijkstra 알고리즘으로 모든 노드 쌍 간 최단 경로 계산
+
+5. **4가지 알고리즘 실행 및 비교**
+   - Greedy Nearest-Next
+   - Greedy + 2-Opt
+   - Cheapest Insertion
+   - Random Baseline
+
+6. **성능 메트릭 비교 테이블**
+   - 총 비용 (Total Cost)
+   - 이동 시간 (Move Time)
+   - 대기 시간 (Wait Time)
+   - 실행 시간 (Exec Time)
+   - 메모리 사용량 (Memory)
+
+7. **최적 경로 상세 정보**
+   - 알고리즘 이름 및 총 방문지 수
+   - 시간 분류별 상세 정보 (이동/대기/식사/공연)
+   - 단계별 경로 출력 (한글 텍스트 정렬 적용)
 
 ------------------------------------------------------------------------
 
-## 11. 구현 세부사항
+## 12. 구현 세부사항
 
-### 11.1 파일 설명
+### 12.1 파일 설명
+
+#### 핵심 모듈
 
 -   `graph.py`: 그래프 자료구조 및 노드 정의
--   `weights.py`: 가중치 계산 함수 정의
--   `user.py`: 사용자 프로필 및 제약조건 정의
--   `routing/leg_shortest_path.py`: Dijkstra 기반 최단 경로 사전 계산
--   `routing/alg_greedy_nearest.py`: 탐욕적 최근접 이웃 알고리즘
--   `routing/alg_greedy_2opt.py`: 2-opt 지역 탐색을 적용한 탐욕 알고리즘
--   `routing/alg_cheapest_insertion.py`: 최소 비용 삽입 휴리스틱 알고리즘
--   `routing/alg_random_baseline.py`: 무작위 경로 생성, 기준선 알고리즘
--   `evaluation.py`: 성능 평가
--   `main.py`: 메인 실행 파일
+    -   `Node` 클래스: 노드 속성 (id, type, name, wait_time, 제약조건)
+    -   `Graph` 클래스: 인접 리스트 기반 그래프, 노드/간선 관리
+    -   `add_undirected_edge()`: 양방향 간선 추가 메서드
+    -   `filter_usable_nodes()`: 사용자 제약조건 기반 노드 필터링
 
-### 11.2 알고리즘 시간 복잡도
+-   `weights.py`: 가중치 계산 함수 정의
+    -   `WeightCalculator` 클래스: α, β 계수 관리
+    -   `edge_cost()`: 단일 구간 비용 계산
+    -   `leg_cost()`: 미리 계산된 최단 경로 기반 구간 비용
+    -   `path_cost()`: 전체 경로 총 비용 계산
+    -   `calculate_metrics()`: 경로의 상세 메트릭 계산
+
+-   `user.py`: 사용자 프로필 및 제약조건 처리
+    -   `UserProfile` 클래스: 나이, 키, 이름 관리
+    -   `to_dict()`: 딕셔너리 변환 메서드
+
+-   `park_loader.py`: 테마파크 데이터 로더 및 실시간 API 연동
+    -   `create_park_graph()`: JSON 데이터로부터 그래프 생성
+    -   `fetch_realtime_wait_times()`: queue-times.com API 호출
+    -   `add_missing_connections()`: 그래프 연결성 보강
+    -   상수 정의: `CLOSED_RIDE_WAIT_TIME`, `DEFAULT_ATTRACTION_WAIT` 등
+    -   ID ↔ 영문 이름 매핑 (API 연동용)
+
+-   `evaluation.py`: 성능 평가 및 메트릭 계산
+    -   `PerformanceMetrics` 클래스: 알고리즘 성능 지표
+    -   `evaluate_algorithm()`: 실행시간/메모리 측정을 포함한 알고리즘 평가
+    -   `compare_algorithms()`: 알고리즘 간 성능 비교 테이블 출력
+
+-   `main.py`: 메인 실행 파일
+    -   `display_width()`: 한글 전각문자 고려 텍스트 너비 계산
+    -   사용자 입력 처리 (이름, 나이, 키) 및 유효성 검사
+    -   필터링 결과 상세 출력 (운영 상태, 사용자 제약조건)
+    -   알고리즘 실행 및 결과 비교
+    -   최적 경로 시각화 (종류별 시간 출력)
+
+#### 라우팅 알고리즘
+
+-   `routing/shortest_path.py`: Dijkstra 기반 최단 경로 사전 계산
+    -   `dijkstra()`: 단일 출발점 최단 경로
+    -   `compute_all_pairs_shortest_paths()`: 모든 노드 쌍 간 최단 경로
+
+-   `routing/greedy_nearest.py`: 탐욕적 최근접 이웃 알고리즘
+    -   현재 위치에서 가장 가까운 미방문 노드 선택
+
+-   `routing/greedy_2opt.py`: 2-opt 지역 탐색을 적용한 탐욕 알고리즘
+    -   Greedy Nearest-Next로 초기 경로 생성
+    -   2-opt 스왑으로 경로 개선
+    -   비대칭 대기시간 고려한 정확한 비용 재계산
+
+-   `routing/cheapest_insertion.py`: 최소 비용 삽입 휴리스틱
+    -   경로에 노드를 삽입할 때 비용 증가가 최소인 위치 선택
+
+-   `routing/random_baseline.py`: 무작위 경로 생성 (기준선)
+    -   성능 비교를 위한 랜덤 순열 기반 경로
+
+#### 데이터 파일
+
+-   `data/everland/nodes.json`: 에버랜드 노드 데이터
+    -   어트랙션, 식당, 공연장, 편의시설 정보
+    -   각 노드의 타입, 이름, 제약조건 (min/max height, min/max age)
+
+-   `data/everland/edges.json`: 간선 데이터
+    -   노드 간 이동 경로 및 이동 시간 (분)
+    -   무방향 간선으로 양방향 이동 가능
+
+-   `data/everland/coords.json`: 노드 좌표 데이터
+    -   각 노드의 (x, y) 픽셀 좌표
+    -   시각화 및 거리 계산 참고용
+
+### 12.2 알고리즘 시간 복잡도
 
 -   **최단 경로 사전 계산**: O(V * (V+E) log V) - 모든 노드 쌍에 대해 Dijkstra 실행
 -   **Greedy Nearest-Next**: O(K²) - K개의 목표 노드에 대해 순차적으로 최근접 선택
 -   **Greedy + 2-Opt**: O(K² + I*K³) - 초기 경로 + I번의 2-opt 반복 (각 스왑마다 O(K) 구간 재계산)
 -   **Cheapest Insertion**: O(K² * K) = O(K³) - K번의 삽입, 각 삽입마다 K개 위치 탐색
 -   **Random Baseline**: O(K) - 노드 리스트 셔플만 수행
+
+### 12.3 주요 구현 특징
+
+#### 사용자 경험 향상
+-   **입력 검증**: 나이(0-150세), 키(50-250cm) 범위 검사 및 재입력 처리
+-   **상세한 피드백**: 필터링 단계별 정보 출력 (운영 상태, 사용자 제약)
+-   **한글 텍스트 정렬**: `unicodedata.east_asian_width()` 사용하여 전각문자 너비 계산
+-   **시간 분류**: 대기/식사/공연 시간 구분 출력
+
+#### 데이터 구조 개선
+-   **데이터/코드 분리**: 테마파크 정보 JSON 파일을 `data/` 디렉토리로 분리
+-   **역방향 매핑**: `ID_TO_NAME` 딕셔너리로 O(1) 조회 성능
+-   **그래프 메서드**: `add_undirected_edge()` 메서드로 양방향 간선 추가 간소화
+
+#### 에러 처리
+-   **API 실패 대응**: 네트워크 오류 시 기본 대기시간 사용
+-   **타임아웃 설정**: API 호출에 3초 타임아웃 적용
+-   **노드 누락 처리**: 존재하지 않는 노드 접근 시 적절한 예외 처리
+
+#### 성능 측정
+-   **메모리 추적**: `tracemalloc`을 사용한 알고리즘별 메모리 사용량 측정
+-   **실행 시간**: `time.perf_counter()`로 정밀한 시간 측정
+-   **비교 분석**: 4가지 알고리즘의 다차원 성능 비교 (비용/시간/메모리)

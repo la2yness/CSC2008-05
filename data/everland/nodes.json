@@ -1,0 +1,77 @@
+[
+  { "id": 0,  "name": "메인 입구", "type": "entrance","zone": "Entrance"},
+
+  { "id": 59,  "name": "게임 어드벤처",                "zone": "American Adventure",  "type": "attraction", "min_height": null },
+  { "id": 61,  "name": "롤링 게임 스테이션",           "zone": "American Adventure",  "type": "attraction", "min_height": null },
+  { "id": 109, "name": "게임피아",                      "zone": "Magic Land",          "type": "attraction", "min_height": null },
+  { "id": 153, "name": "쥬빌리 카니발",                "zone": "European Adventure",  "type": "attraction", "min_height": null },
+  { "id": 158, "name": "알파인 카니발",                "zone": "European Adventure",  "type": "attraction", "min_height": null },
+  { "id": 201, "name": "메모리 카니발",                "zone": "Zootopia",            "type": "attraction", "min_height": null },
+  { "id": 202, "name": "축제 컨텐츠 존",               "zone": "Zootopia",            "type": "attraction", "min_height": null },
+
+  { "id": 195,  "name": "호러메이즈",                   "zone": "European Adventure",  "type": "attraction", "min_height": null },
+  { "id": 123, "name": "스푸키 펀 하우스",            "zone": "Magic Land",          "type": "attraction", "min_height": null },
+  { "id": 152, "name": "페스티벌 트레인",             "zone": "European Adventure",  "type": "attraction", "min_height": null },
+  { "id": 116, "name": "로보트카",                    "zone": "Magic Land",          "type": "attraction", "min_height": 80, "max_height": 125 },
+  { "id": 117, "name": "붕붕카",                      "zone": "Magic Land",          "type": "attraction", "min_height": 80, "max_height": 125},
+  { "id": 120, "name": "자동차 왕국",                 "zone": "Magic Land",          "type": "attraction", "min_height": 80, "max_height": 125},
+  { "id": 106, "name": "플라잉 레스큐",               "zone": "Magic Land",          "type": "attraction", "min_height": 90, "max_height": 100 },
+  { "id": 103, "name": "플레이 야드",                 "zone": "Magic Land",          "type": "attraction", "min_height": 90, "max_height": 130},
+  { "id": 104, "name": "릴리 댄스",                   "zone": "Magic Land",          "type": "attraction", "min_height": 100 },
+  { "id": 112, "name": "스카이 댄싱",                 "zone": "Magic Land",          "type": "attraction", "min_height": 100},
+  { "id": 113, "name": "피터팬",                      "zone": "Magic Land",          "type": "attraction", "min_height": 100},
+  { "id": 114, "name": "플래쉬 팡팡",                 "zone": "Magic Land",          "type": "attraction", "min_height": 100},
+  { "id": 115, "name": "나는 코끼리",                 "zone": "Magic Land",          "type": "attraction", "min_height": 100 },
+  { "id": 124, "name": "시크릿쥬쥬 비행기",          "zone": "Magic Land",          "type": "attraction", "min_height": 100 },
+  { "id": 151, "name": "로얄 쥬빌리 캐로셀",          "zone": "European Adventure",  "type": "attraction", "min_height": 100 },
+  { "id": 207, "name": "로스트 밸리",                 "zone": "Zootopia",            "type": "attraction", "min_height": 100 },
+  { "id": 101, "name": "레이싱 코스터",                "zone": "Magic Land",          "type": "attraction", "min_height": 100 },
+  { "id": 107, "name": "썬더폴스",                    "zone": "Magic Land",          "type": "attraction", "min_height": 100, "max_height": 130},
+  { "id": 111, "name": "매직 스윙",                   "zone": "Magic Land",          "type": "attraction", "min_height": 100, "max_height": 120 },
+  { "id": 121, "name": "우주전투기",                   "zone": "Magic Land",          "type": "attraction", "min_height": 110 },
+  { "id": 122, "name": "비룡열차",                    "zone": "Magic Land",          "type": "attraction", "min_height": 110 },
+  { "id": 206, "name": "아마존 익스프레스",           "zone": "Zootopia",            "type": "attraction", "min_height": 110 },
+
+  { "id": 58,  "name": "콜럼버스 대탐험",              "zone": "American Adventure",  "type": "attraction", "min_height": 110 },
+  { "id": 154, "name": "슈팅 고스트",                  "zone": "European Adventure",  "type": "attraction", "min_height": 110 },
+  { "id": 155, "name": "레니의 마법학교",             "zone": "European Adventure",  "type": "attraction", "min_height": 110 },
+  { "id": 156, "name": "스페이스 투어",               "zone": "European Adventure",  "type": "attraction", "min_height": 110 },
+  { "id": 110, "name": "매직 쿠키 하우스",            "zone": "Magic Land",          "type": "attraction", "min_height": 110, "max_height": 150},
+  { "id": 57,  "name": "롤링 엑스 트레인",            "zone": "American Adventure",  "type": "attraction", "min_height": 120 },
+  { "id": 118, "name": "범퍼카",                      "zone": "Magic Land",          "type": "attraction", "min_height": 120 },
+  { "id": 190, "name": "레이싱 코스",               "zone": "Magic Land",          "type": "attraction", "min_height": 120 },
+  { "id": 102, "name": "불 하우스",                   "zone": "Magic Land",          "type": "attraction", "min_height": 125 },
+  { "id": 53,  "name": "허리케인",                    "zone": "American Adventure",  "type": "attraction", "min_height": 130 },
+  { "id": 60,  "name": "챔피온쉽로데오",               "zone": "American Adventure",  "type": "attraction", "min_height": 130 },
+  { "id": 196, "name": "레일 슬라이드",               "zone": "European Adventure",  "type": "attraction", "min_height": 130 },
+  { "id": 157, "name": "T 익스프레스",                 "zone": "European Adventure",  "type": "attraction", "min_height": 130, "max_height": 195 },
+  { "id": 54,  "name": "더블 락스핀",                 "zone": "American Adventure",  "type": "attraction", "min_height": 140 },
+  { "id": 56,  "name": "렛츠 트위스트",               "zone": "American Adventure",  "type": "attraction", "min_height": 140, "max_height": 195 },
+
+  { "id": 184, "name": "매직타임 레스토랑", "zone": "Magic Land", "type": "restaurant" },
+  { "id": 20,  "name": "한와담 소반",       "zone": "European Adventure", "type": "restaurant" },
+  { "id": 187, "name": "알파인 레스토랑",   "zone": "European Adventure", "type": "restaurant" },
+  { "id": 183, "name": "한가람",            "zone": "European Adventure", "type": "restaurant" },
+  { "id": 19,  "name": "온더보더",          "zone": "American Adventure", "type": "restaurant" },
+
+  { "id": 177, "name": "쿠치나 마리오",     "zone": "European Adventure", "type": "restaurant" },
+  { "id": 178, "name": "홀랜드빌리지",      "zone": "European Adventure", "type": "restaurant" },
+  { "id": 186, "name": "알프스 쿠체",       "zone": "European Adventure", "type": "restaurant" },
+
+  { "id": 180, "name": "차이나문",          "zone": "Global Fair", "type": "restaurant" },
+
+  { "id": 137, "name": "타운즈 마켓 레스토랑", "zone": "Zootopia", "type": "restaurant" },
+
+  { "id": 24,  "name": "오리엔탈",           "zone": "Magic Land", "type": "restaurant" },
+  { "id": 194, "name": "포메인",             "zone": "Magic Land", "type": "restaurant" },
+
+  { "id": 68,  "name": "버거카페 아메리카",  "zone": "American Adventure", "type": "restaurant" },
+  { "id": 69,  "name": "KFC",                "zone": "Global Fair", "type": "restaurant" },
+  { "id": 182, "name": "버거카페 유럽",      "zone": "European Adventure", "type": "restaurant" },
+  { "id": 189, "name": "BBQ 치킨",           "zone": "Global Fair", "type": "restaurant" },
+
+  { "id": 216, "name": "애니멀 원더 스테이지", "zone": "Zootopia", "type": "show" },
+  { "id": 217, "name": "판타스틱 윙스",        "zone": "Zootopia", "type": "show" },
+  { "id": 218, "name": "씨라이언 빌리지",      "zone": "Zootopia", "type": "show" }
+]
+

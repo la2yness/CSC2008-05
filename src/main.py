@@ -1,15 +1,28 @@
 from graph import Graph, Node
 from user import UserProfile
 from weights import WeightCalculator
+import unicodedata
 
 # 라우팅 알고리즘 모듈
-from routing.leg_shortest_path import compute_all_pairs_shortest_paths
-from routing.alg_greedy_nearest import greedy_nearest_next
-from routing.alg_greedy_2opt import greedy_nearest_with_2opt
-from routing.alg_cheapest_insertion import cheapest_insertion
-from routing.alg_random_baseline import random_baseline
+from routing.shortest_path import compute_all_pairs_shortest_paths
+from routing.greedy_nearest import greedy_nearest_next
+from routing.greedy_2opt import greedy_nearest_with_2opt
+from routing.cheapest_insertion import cheapest_insertion
+from routing.random_baseline import random_baseline
 from evaluation import evaluate_algorithm, compare_algorithms
-from everland_loader import create_everland_graph
+from park_loader import create_park_graph, CLOSED_RIDE_WAIT_TIME
+
+def display_width(text):
+    """
+    텍스트의 실제 표시 너비 계산 (한글은 2, 영문은 1)
+    """
+    width = 0
+    for char in text:
+        if unicodedata.east_asian_width(char) in ('F', 'W'):
+            width += 2
+        else:
+            width += 1
+    return width
 
 def main():
     print("\n" + "=" * 100)
@@ -18,7 +31,7 @@ def main():
 
     # [1] Graph Creation
     print("[1] Creating theme park graph...")
-    graph = create_everland_graph()
+    graph = create_park_graph()
     
     if graph is None: return
 
@@ -36,12 +49,42 @@ def main():
 
     # [2] User Profile
     print("\n[2] Creating user profile...")
-    user = UserProfile(name="Alice", age=25, height=170)
-    print(f"    User: UserProfile(name={user.name}, age={user.age}, height={user.height}cm)")
+    print("    Please enter visitor information:")
+
+    # 이름 입력
+    name = input("      Name: ").strip()
+    if not name:
+        name = "Guest"
+
+    # 나이 입력
+    while True:
+        age_input = input("      Age: ").strip()
+        try:
+            age = int(age_input)
+            if age < 0 or age > 150:
+                print("      Invalid age. Please enter a valid age (0-150).")
+                continue
+            break
+        except ValueError:
+            print("      Invalid input. Please enter a number.")
+
+    # 키 입력
+    while True:
+        height_input = input("      Height (cm): ").strip()
+        try:
+            height = float(height_input)
+            if height < 50 or height > 250:
+                print("      Invalid height. Please enter a valid height (50-250 cm).")
+                continue
+            break
+        except ValueError:
+            print("      Invalid input. Please enter a number.")
+
+    user = UserProfile(name=name, age=age, height=height)
+    print(f"\n    Created UserProfile(name={user.name}, age={user.age}, height={user.height}cm)")
 
     # [3] Selecting Desired Attractions
     print("\n[3] Selecting desired attractions...")
-    # [수정] 방문지 대폭 추가 (기존 + 56, 156, 118, 151, 111)
     wishlist = [
         0,   # 정문
         157, # T 익스프레스
@@ -52,38 +95,105 @@ def main():
         107, # 썬더폴스
         180, # 차이나문 (식당)
         217, # 판타스틱 윙스 (공연)
-        56,  # 렛츠 트위스트 (추가)
-        156, # 스페이스 투어 (추가)
-        118, # 범퍼카 (추가)
-        151, # 로얄 쥬빌리 캐로셀 (추가)
-        111  # 매직 스윙 (추가)
+        56,  # 렛츠 트위스트
+        156, # 스페이스 투어
+        118, # 범퍼카
+        151, # 로얄 쥬빌리 캐로셀
+        111  # 매직 스윙
     ]
     
-    desired_nodes = []
-    for nid in wishlist:
-        node = graph.get_node(nid)
-        if node and node.wait_time < 999:
-            desired_nodes.append(nid)
-            
-    print(f"    Desired nodes: {desired_nodes}")
+    # 운영 중인 놀이기구만 선택 (wait_time < CLOSED_RIDE_WAIT_TIME)
+    available_nodes = []
+    operation_filtered = []
 
-    if len(desired_nodes) < 2:
+    print(f"    Total wishlist: {len(wishlist)} nodes")
+
+    for nid in wishlist:
+        try:
+            node = graph.get_node(nid)
+            if node and node.wait_time < CLOSED_RIDE_WAIT_TIME:
+                available_nodes.append(nid)
+            else:
+                operation_filtered.append((nid, node.name if node else "N/A", node.wait_time if node else "N/A"))
+        except ValueError:
+            operation_filtered.append((nid, "Not Found", "N/A"))
+            continue
+
+    print(f"    Available nodes: {len(available_nodes)} nodes")
+    if operation_filtered:
+        print(f"    Filtered out: {len(operation_filtered)} nodes")
+
+        # 정렬을 위해 최대 표시 너비 계산
+        max_width = max(display_width(f"[{nid}] {name}") for nid, name, _ in operation_filtered)
+
+        for nid, name, wait in operation_filtered:
+            label = f"[{nid}] {name}"
+            current_width = display_width(label)
+            padding = max_width - current_width
+
+            if wait == CLOSED_RIDE_WAIT_TIME:
+                print(f"      - {label}{' ' * padding} : 운영 중단")
+            elif wait == "N/A":
+                print(f"      - {label}{' ' * padding} : 존재하지 않음")
+            else:
+                print(f"      - {label}{' ' * padding} : 대기 {wait}분")
+
+    if len(available_nodes) < 2:
         print("    ! Not enough destinations selected.")
         return
 
     # [4] Filtering Usable Nodes
     print("\n[4] Filtering usable nodes based on user constraints...")
-    try: 
-        user_info = user.to_dict()
-    except: 
-        user_info = {"age": user.age, "height": user.height}
+    print(f"    Input nodes: {len(available_nodes)} nodes")
+    print(f"    User: age={user.age}, height={user.height}cm")
 
-    usable_nodes = graph.filter_usable_nodes(user_info, desired_nodes)
-    
-    if 0 not in usable_nodes and 0 in desired_nodes:
+    user_info = user.to_dict()
+    usable_nodes = graph.filter_usable_nodes(user_info, available_nodes)
+
+    # 사용자 제약조건에 의해 필터링된 노드 확인
+    constraint_filtered = []
+    for nid in available_nodes:
+        if nid not in usable_nodes:
+            try:
+                node = graph.get_node(nid)
+                reasons = []
+
+                # 키 제약 확인
+                if node.min_height is not None and user.height < node.min_height:
+                    reasons.append(f"최소 키 {node.min_height}cm 필요")
+                if node.max_height is not None and user.height > node.max_height:
+                    reasons.append(f"최대 키 {node.max_height}cm 제한")
+
+                # 나이 제약 확인
+                if node.min_age is not None and user.age < node.min_age:
+                    reasons.append(f"최소 나이 {node.min_age}세 필요")
+                if node.max_age is not None and user.age > node.max_age:
+                    reasons.append(f"최대 나이 {node.max_age}세 제한")
+
+                if reasons:
+                    constraint_filtered.append((nid, node.name, ", ".join(reasons)))
+            except ValueError:
+                continue
+
+    # 정문은 항상 포함
+    if 0 not in usable_nodes and 0 in available_nodes:
         usable_nodes.insert(0, 0)
-        
-    print(f"    Usable nodes: {usable_nodes}")
+
+    print(f"    Usable nodes: {len(usable_nodes)} nodes")
+
+    if constraint_filtered:
+        print(f"    Filtered out: {len(constraint_filtered)} nodes")
+
+        # 정렬을 위해 최대 표시 너비 계산
+        max_width = max(display_width(f"[{nid}] {name}") for nid, name, _ in constraint_filtered)
+
+        for nid, name, reason in constraint_filtered:
+            label = f"[{nid}] {name}"
+            current_width = display_width(label)
+            padding = max_width - current_width
+            print(f"      - {label}{' ' * padding} : {reason}")
+    else:
+        print(f"    All attractions meet user constraints!")
 
     # [5] Computing Shortest Paths
     print("\n[5] Computing all-pairs shortest paths...")
@@ -117,11 +227,7 @@ def main():
             print(f"    Error running {name}: {e}")
 
     # 결과 비교 출력
-    print("\n" + "="*100)
-    print("Algorithm Performance Comparison")
-    print("="*100)
     compare_algorithms(metrics_list)
-    print("="*100)
 
     # 최적 경로 상세 출력
     valid_metrics = [m for m in metrics_list if m.total_cost != float('inf')]
@@ -130,46 +236,66 @@ def main():
         return
 
     best = sorted(valid_metrics, key=lambda x: x.total_cost)[0]
-    
-    print(f"\nBest Performance:")
-    print(f"  - Lowest Total Cost: {best.algorithm_name} ({best.total_cost:.2f})")
+
+    print("\n" + "="*100)
+    print("Optimal Route Details")
     print("="*100)
-    
-    print("\n\nDetailed Path Information:")
-    print("="*100)
-    
-    route_display_list = []
-    
-    # [수정] 경로가 메인 입구(0)로 끝나지 않으면 강제로 추가 (원점 회귀)
+
+    # 경로가 메인 입구(0)로 끝나지 않으면 강제로 원점 회귀
     final_path = list(best.path)
     if final_path[-1] != 0:
         final_path.append(0)
 
+    wait_time = 0
+    meal_time = 0
+    show_time = 0
+
     for nid in final_path:
         node = graph.get_node(nid)
-        
-        name = getattr(node, 'name', f"ID_{nid}")
-        ntype = getattr(node, 'node_type', 'attraction')
-        wait = getattr(node, 'wait_time', 0)
-        
-        info = ""
+        if node.node_type == 'attraction':
+            wait_time += node.wait_time
+        elif node.node_type == 'restaurant':
+            meal_time += node.wait_time
+        elif node.node_type == 'show':
+            show_time += node.wait_time
+
+    print(f"\nAlgorithm: {best.algorithm_name}")
+    print(f"Total Stops: {len(final_path)}")
+    print(f"\nTime Breakdown:")
+    print(f"  - Total Cost: {best.total_cost:.2f}분")
+    print(f"  - Move Time: {best.total_move_time:.2f}분")
+    print(f"  - Wait Time: {wait_time:.2f}분")
+    if meal_time > 0:
+        print(f"  - Meal Time: {meal_time:.2f}분")
+    if show_time > 0:
+        print(f"  - Show Time: {show_time:.2f}분")
+    print(f"\nRoute:")
+
+    # 경로 출력
+    for i, nid in enumerate(final_path):
+        node = graph.get_node(nid)
+        name = node.name
+        ntype = node.node_type
+        wait = node.wait_time
+
+        if i > 0:
+            print("     ↓")
+
         if ntype == 'restaurant':
-            info = f"[{name} (식사 {wait}분)]"
+            print(f"  {i+1}. {name} (식사 {wait}분)")
         elif ntype == 'show':
-            info = f"[{name} (관람 {wait}분)]"
+            print(f"  {i+1}. {name} (공연 관람 {wait}분)")
         elif ntype == 'entrance':
-            # 출발지인지 도착지인지 구분 (맨 마지막에 있으면 도착)
-            if nid == final_path[-1] and len(final_path) > 1:
-                info = f"[{name} (도착)]"
+            if i == 0:
+                print(f"  {i+1}. {name} (출발)")
+            elif i == len(final_path) - 1:
+                print(f"  {i+1}. {name} (도착)")
             else:
-                info = f"[{name} (출발)]"
+                print(f"  {i+1}. {name}")
         else:
-            info = f"[{name} (대기 {wait}분)]"
-            
-        route_display_list.append(info)
-        
-    print(" -> ".join(route_display_list))
-    print("="*100 + "\n")
+            print(f"  {i+1}. {name} (대기 {wait}분)")
+
+    print("\n" + "="*100 + "\n")
 
 if __name__ == "__main__":
     main()

@@ -4,7 +4,7 @@ Greedy Nearest-Next + 2-Opt Local Search 알고리즘
 """
 
 from typing import List, Dict
-from .alg_greedy_nearest import greedy_nearest_next
+from .greedy_nearest import greedy_nearest_next
 
 
 def calculate_edge_cost(

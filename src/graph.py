@@ -32,7 +32,7 @@ class Node:
             max_age: 최대 나이 제한
         """
         self.id = node_id
-        self.type = node_type
+        self.node_type = node_type
         self.name = name if name else f"Node_{node_id}"
         self.wait_time = wait_time
         self.min_height = min_height
@@ -53,26 +53,24 @@ class Node:
         age = user_profile.get("age")
         height = user_profile.get("height")
 
-        if self.min_age is not None and age is not None:
-            if age < self.min_age:
+        # 나이 제약 체크
+        if age is not None:
+            if self.min_age is not None and age < self.min_age:
+                return False
+            if self.max_age is not None and age > self.max_age:
                 return False
 
-        if self.max_age is not None and age is not None:
-            if age > self.max_age:
+        # 키 제약 체크
+        if height is not None:
+            if self.min_height is not None and height < self.min_height:
                 return False
-
-        if self.min_height is not None and height is not None:
-            if height < self.min_height:
-                return False
-
-        if self.max_height is not None and height is not None:
-            if height > self.max_height:
+            if self.max_height is not None and height > self.max_height:
                 return False
 
         return True
 
     def __repr__(self):
-        return f"Node({self.id}, {self.name}, type={self.type})"
+        return f"Node({self.id}, {self.name}, type={self.node_type})"
 
 
 class Graph:
@@ -100,7 +98,7 @@ class Graph:
 
     def add_edge(self, u: int, v: int, move_time: float):
         """
-        무방향 간선 추가
+        단방향 간선 추가
 
         Args:
             u: 시작 노드 ID
@@ -113,9 +111,19 @@ class Graph:
         if move_time < 0:
             raise ValueError(f"Move time must be non-negative: {move_time}")
 
-        # 무방향 그래프이므로 양방향 추가
         self.adj[u].append((v, move_time))
-        self.adj[v].append((u, move_time))
+
+    def add_undirected_edge(self, u: int, v: int, move_time: float):
+        """
+        무방향 간선 추가
+
+        Args:
+            u: 노드 ID 1
+            v: 노드 ID 2
+            move_time: 이동 시간 (분)
+        """
+        self.add_edge(u, v, move_time)
+        self.add_edge(v, u, move_time)
 
     def get_node(self, node_id: int) -> Node:
         """노드 ID로 노드 객체 가져오기"""

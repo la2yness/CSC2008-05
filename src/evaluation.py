@@ -182,4 +182,4 @@ def compare_algorithms(
     print(f"  - Lowest Total Cost: {best_cost.algorithm_name} ({best_cost.total_cost:.2f})")
     print(f"  - Fastest Execution: {fastest.algorithm_name} ({fastest.execution_time:.6f}s)")
     print(f"  - Least Memory: {least_memory.algorithm_name} ({least_memory.memory_used:.4f}KB)")
-    print("=" * 100 + "\n")
+    print("\n" + "=" * 100 + "\n")
