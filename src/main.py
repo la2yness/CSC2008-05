@@ -2,15 +2,17 @@ from graph import Graph, Node
 from user import UserProfile
 from weights import WeightCalculator
 import unicodedata
+import os
 
 # 라우팅 알고리즘 모듈
-from routing.shortest_path import compute_all_pairs_shortest_paths
+from routing.shortest_path import compute_all_pairs_shortest_paths, reconstruct_path
 from routing.greedy_nearest import greedy_nearest_next
 from routing.greedy_2opt import greedy_nearest_with_2opt
 from routing.cheapest_insertion import cheapest_insertion
 from routing.random_baseline import random_baseline
 from evaluation import evaluate_algorithm, compare_algorithms
 from park_loader import create_park_graph, CLOSED_RIDE_WAIT_TIME
+from visualize import visualize_all
 
 def display_width(text):
     """
@@ -197,8 +199,8 @@ def main():
 
     # [5] Computing Shortest Paths
     print("\n[5] Computing all-pairs shortest paths...")
-    travel_costs = compute_all_pairs_shortest_paths(graph, usable_nodes)
-    print(f"    Computed travel costs for {len(usable_nodes)} nodes (optimized for usable nodes only)")
+    travel_costs, predecessors = compute_all_pairs_shortest_paths(graph, usable_nodes)
+    print(f"    Computed travel costs for all nodes (including intermediate nodes for path reconstruction)")
 
     # [6] Setting up Weight Calculator
     print("\n[6] Setting up weight calculator...")
@@ -226,10 +228,8 @@ def main():
         except Exception as e:
             print(f"    Error running {name}: {e}")
 
-    # 결과 비교 출력
     compare_algorithms(metrics_list)
 
-    # 최적 경로 상세 출력
     valid_metrics = [m for m in metrics_list if m.total_cost != float('inf')]
     if not valid_metrics:
         print("\nNo valid route found.")
@@ -242,22 +242,51 @@ def main():
     print("="*100)
 
     # 경로가 메인 입구(0)로 끝나지 않으면 강제로 원점 회귀
-    final_path = list(best.path)
-    if final_path[-1] != 0:
-        final_path.append(0)
+    route_nodes = list(best.path)
+    if route_nodes[-1] != 0:
+        route_nodes.append(0)
+
+    # 실제 경로 재구성 (중간 경유 노드 포함)
+    print("\n[Reconstructing full path with intermediate nodes...]")
+    final_path = []
+
+    for i in range(len(route_nodes)):
+        if i == 0:
+            final_path.append(route_nodes[i])
+        else:
+            # route_nodes[i-1]에서 route_nodes[i]로 가는 전체 경로 추가
+            source = route_nodes[i-1]
+            target = route_nodes[i]
+
+            # predecessor를 사용하여 경로 재구성
+            segment = reconstruct_path(predecessors[source], source, target)
+
+            if segment:
+                # 첫 번째 노드는 이미 final_path에 있으므로 제외
+                final_path.extend(segment[1:])
+            else:
+                # 경로를 찾을 수 없는 경우 (이론상 발생하지 않아야 함)
+                print(f"    Warning: No path found from {source} to {target}")
+                final_path.append(target)
+
+    print(f"    Original route: {len(route_nodes)} stops")
+    print(f"    Full path with intermediate nodes: {len(final_path)} stops")
 
     wait_time = 0
     meal_time = 0
     show_time = 0
 
+    # route_nodes (실제 방문 목적지)만 대기시간 계산
+    route_set = set(route_nodes)
     for nid in final_path:
-        node = graph.get_node(nid)
-        if node.node_type == 'attraction':
-            wait_time += node.wait_time
-        elif node.node_type == 'restaurant':
-            meal_time += node.wait_time
-        elif node.node_type == 'show':
-            show_time += node.wait_time
+        if nid in route_set:
+            node = graph.get_node(nid)
+            if node.node_type == 'attraction':
+                wait_time += node.wait_time
+            elif node.node_type == 'restaurant':
+                meal_time += node.wait_time
+            elif node.node_type == 'show':
+                show_time += node.wait_time
 
     print(f"\nAlgorithm: {best.algorithm_name}")
     print(f"Total Stops: {len(final_path)}")
@@ -271,29 +300,61 @@ def main():
         print(f"  - Show Time: {show_time:.2f}분")
     print(f"\nRoute:")
 
-    # 경로 출력
+    # 경로 출력 (목적지와 중간 경유 노드 구분)
     for i, nid in enumerate(final_path):
         node = graph.get_node(nid)
         name = node.name
         ntype = node.node_type
         wait = node.wait_time
+        is_destination = nid in route_set
 
         if i > 0:
             print("     ↓")
 
-        if ntype == 'restaurant':
-            print(f"  {i+1}. {name} (식사 {wait}분)")
-        elif ntype == 'show':
-            print(f"  {i+1}. {name} (공연 관람 {wait}분)")
-        elif ntype == 'entrance':
-            if i == 0:
-                print(f"  {i+1}. {name} (출발)")
-            elif i == len(final_path) - 1:
-                print(f"  {i+1}. {name} (도착)")
+        if is_destination:
+            # 실제 방문 목적지
+            if ntype == 'restaurant':
+                print(f"  {i+1}. {name} (식사 {wait}분)")
+            elif ntype == 'show':
+                print(f"  {i+1}. {name} (공연 관람 {wait}분)")
+            elif ntype == 'entrance':
+                if i == 0:
+                    print(f"  {i+1}. {name} (출발)")
+                elif i == len(final_path) - 1:
+                    print(f"  {i+1}. {name} (도착)")
+                else:
+                    print(f"  {i+1}. {name}")
             else:
-                print(f"  {i+1}. {name}")
+                print(f"  {i+1}. {name} (대기 {wait}분)")
         else:
-            print(f"  {i+1}. {name} (대기 {wait}분)")
+            # 중간 경유 노드
+            print(f"  {i+1}. [{name}] (경유)")
+
+    print("\n" + "="*100 + "\n")
+
+    # [8] Visualizations
+    all_filtered_nodes = []
+    for nid, _, _ in operation_filtered:
+        all_filtered_nodes.append(nid)
+    for nid, _, _ in constraint_filtered:
+        all_filtered_nodes.append(nid)
+
+    try:
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        output_dir = os.path.join(project_root, 'output', 'everland')
+
+        visualize_all(
+            graph=graph,
+            usable_nodes=usable_nodes,
+            filtered_nodes=all_filtered_nodes,
+            path=final_path,
+            algorithm_name=best.algorithm_name,
+            output_dir=output_dir,
+            destination_nodes=route_nodes
+        )
+    except Exception as e:
+        print(f"Warning: Visualization failed: {e}")
+        print("(You may need to install matplotlib: pip install matplotlib)")
 
     print("\n" + "="*100 + "\n")
 
