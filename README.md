@@ -43,7 +43,8 @@ cost(u → v) = α * move_time(u, v) + β * wait_time(v)
 total_cost(P) = Σ cost(vi → v{i+1})
 ```
 
-- `α = 1, β = 1`: 현재 가중치 계수
+- `α = 2, β = 1`: 현재 가중치 계수 (이동시간이 대기시간보다 체감 부담이 크므로 2배 가중)
+- 모든 알고리즘은 입구로 돌아오는 순환 경로로 평가 (마지막 노드 → 입구 비용 포함)
 - 실시간 대기시간은 API로 갱신
 
 ------------------------------------------------------------------------
@@ -73,7 +74,22 @@ total_cost(P) = Σ cost(vi → v{i+1})
 - **시간 복잡도**: O(K²) (K = 방문할 노드 수)
 
 ### 4.2 Greedy + Lookahead
-todo:
+Greedy에 미래 예측 기능을 추가하여, 현재 선택의 즉각적인 비용뿐만 아니라 그 다음 단계의 예상 비용까지 고려하는 알고리즘이다.
+
+**동작 과정:**
+1. 시작 노드 (입구)에서 출발
+2. 각 후보 노드에 대해 lookahead 점수 계산:
+   - 즉각 비용: `leg_cost(current, candidate)`
+   - 예상 비용: candidate에서 남은 노드들까지의 평균 비용
+   - 총 점수 = 즉각 비용 + 예상 비용 × lookahead_weight
+3. 총 점수가 최소인 노드 선택
+4. 모든 노드를 방문할 때까지 2-3 반복
+
+**특징:**
+- 단순 Greedy보다 전체 경로를 고려한 선택
+- lookahead_depth로 예측 깊이 조절 가능
+- 먼 미래일수록 가중치 감소 (0.5^depth)
+- **시간 복잡도**: O(K³) (K = 방문할 노드 수)
 
 ### 4.3 Greedy + 2-Opt Local Search
 Greedy로 생성한 초기 경로를 2-opt 지역 탐색으로 개선하는 알고리즘이다.
@@ -120,17 +136,42 @@ Greedy로 생성한 초기 경로를 2-opt 지역 탐색으로 개선하는 알�
 - **시간 복잡도**: O(K)
 
 ### 4.6 MILP 최적화
-todo:
+Mixed Integer Linear Programming을 사용하여 TSP를 정확하게 푸는 알고리즘이다. 이론적으로 최적해를 보장하지만, 노드 수가 많을 경우 시간이 오래 걸릴 수 있다.
+
+**동작 과정:**
+1. 변수 정의:
+   - `x[i][j]`: 간선 (i, j)를 사용하면 1, 아니면 0 (이진 변수)
+   - `u[i]`: 노드 i의 방문 순서 (정수 변수, subtour elimination용)
+2. 목적 함수: `minimize Σ cost[i][j] × x[i][j]`
+3. 제약조건:
+   - 각 노드에서 정확히 하나의 간선이 나감
+   - 각 노드로 정확히 하나의 간선이 들어옴
+   - Subtour elimination (MTZ formulation): `u[i] - u[j] + n × x[i][j] ≤ n - 1`
+4. MILP 솔버로 최적해 탐색
+
+**특징:**
+- 이론적 최적해 보장 (시간 제한 내)
+- 노드 수가 적을 때 효과적
+- 시간 제한 초과 시 feasible solution 반환
+- **시간 복잡도**: 지수적 (NP-hard)
+- **필요 라이브러리**: pulp
 
 ------------------------------------------------------------------------
 
 ## 5. 평가 지표
 
+### 측정 항목
 - **total_cost**: 이동시간 + 대기시간 가중치 합
 - **total_move_time**: 총 이동시간
 - **total_wait_time**: 총 대기시간
 - **실행시간**: 알고리즘 수행 시간
 - **메모리 사용량**: tracemalloc 측정
+
+### 알고리즘 순위 결정 기준
+1. **total_cost**
+2. 동일 시 total_move_time
+3. 동일 시 execution_time
+4. 동일 시 memory_used
 
 ------------------------------------------------------------------------
 
@@ -148,9 +189,11 @@ src/
   routing/
     shortest_path.py       # Dijkstra 최단 경로
     greedy_nearest.py      # Greedy Nearest-Next
+    greedy_lookahead.py    # Greedy + Lookahead
     greedy_2opt.py         # Greedy + 2-Opt
     cheapest_insertion.py  # Cheapest Insertion
     random_baseline.py     # Random Baseline
+    milp_optimizer.py      # MILP 최적화
 
 data/everland/
   nodes.json               # 노드 데이터
@@ -198,10 +241,11 @@ output/everland/
 
 ## 8. 시각화
 
-### 3가지 시각화
+### 시각화 출력
 1. **전체 그래프**: 노드 타입별 컬러 아이콘, 간선 연결
 2. **제약조건 그래프**: 사용 가능/불가능 노드 구분, 이름 표시
-3. **경로 지도**: 방문 순서, 방향 화살표, 이름 표시
+3. **1등 알고리즘 경로 지도**: 최적 경로 시각화
+4. **2등 알고리즘 경로 지도**: 차선 경로 시각화 (비교용)
 
 ### 시각화 특징
 - **다크모드**: 검은 배경, 흰색 텍스트/경로
@@ -215,7 +259,11 @@ output/everland/
 
 ### 의존성 설치
 ```bash
-pip install requests matplotlib numpy Pillow
+# 방법 1: 직접 설치
+pip install requests matplotlib numpy Pillow pulp
+
+# 방법 2: requirements.txt 사용
+pip install -r requirements.txt
 ```
 
 ### 실행
@@ -232,10 +280,10 @@ python main.py
 ### 출력
 1. 실시간 대기시간 API 호출
 2. 사용자 제약조건 필터링
-3. 4가지 알고리즘 실행 및 비교
-4. 성능 메트릭 테이블
+3. 6가지 알고리즘 실행 및 비교
+4. 성능 메트릭 테이블 (다단계 정렬 기준 적용)
 5. 최적 경로 상세 정보 (이동/대기/식사/공연 시간 분류)
-6. 3가지 그래프 시각화 이미지
+6. 4가지 그래프 시각화 이미지 (전체, 제약조건, 1등 경로, 2등 경로)
 
 ------------------------------------------------------------------------
 
@@ -247,14 +295,16 @@ python main.py
 - 한글 전각문자 고려 텍스트 정렬
 - 시간 분류별 출력 (대기/식사/공연)
 
-### 성능
+### 성능 및 평가
 - Dijkstra 기반 최단 경로 사전 계산
 - 메모리 추적 (tracemalloc)
 - 실행 시간 정밀 측정 (time.perf_counter)
+- 모든 알고리즘이 입구로 복귀하는 순환 경로로 평가
+- total_cost → move_time → exec_time → memory 순으로 비교
 
 ### 에러 처리
 - API 실패 시 기본 대기시간 사용 (타임아웃 3초)
-- 그래프 연결성 보강 (add_missing_connections)
+- 그래프 연결성 보강 (add_missing_connections): 간선 부족 구간 자동 보완
 
 ------------------------------------------------------------------------
 

@@ -7,12 +7,14 @@ import os
 # 라우팅 알고리즘 모듈
 from routing.shortest_path import compute_all_pairs_shortest_paths, reconstruct_path
 from routing.greedy_nearest import greedy_nearest_next
+from routing.greedy_lookahead import greedy_lookahead
 from routing.greedy_2opt import greedy_nearest_with_2opt
 from routing.cheapest_insertion import cheapest_insertion
 from routing.random_baseline import random_baseline
+from routing.milp_optimizer import milp_tsp
 from evaluation import evaluate_algorithm, compare_algorithms
 from park_loader import create_park_graph, CLOSED_RIDE_WAIT_TIME
-from visualize import visualize_all
+from visualize import visualize_all, visualize_path
 
 def display_width(text):
     """
@@ -205,7 +207,7 @@ def main():
     # [6] Setting up Weight Calculator
     print("\n[6] Setting up weight calculator...")
     wait_times = {nid: graph.get_node(nid).wait_time for nid in usable_nodes}
-    weight_calc = WeightCalculator(alpha=1.0, beta=1.0)
+    weight_calc = WeightCalculator(alpha=2.0, beta=1.0)
     print(f"    WeightCalculator(alpha={weight_calc.alpha}, beta={weight_calc.beta})")
 
     # [7] Running Algorithms
@@ -215,9 +217,11 @@ def main():
 
     algos = [
         ("Greedy Nearest-Next", greedy_nearest_next),
+        ("Greedy + Lookahead", lambda s, u, t, w, c: greedy_lookahead(s, u, t, w, c, lookahead_depth=2)),
         ("Greedy + 2-Opt", lambda s, u, t, w, c: greedy_nearest_with_2opt(s, u, t, w, c, max_iterations=500)),
         ("Cheapest Insertion", cheapest_insertion),
-        ("Random Baseline", lambda s, u, t, w, c: random_baseline(s, u, t, w, c, seed=42))
+        ("Random Baseline", lambda s, u, t, w, c: random_baseline(s, u, t, w, c, seed=42)),
+        ("MILP Optimization", lambda s, u, t, w, c: milp_tsp(s, u, t, w, c, time_limit=60))
     ]
 
     for name, func in algos:
@@ -235,18 +239,25 @@ def main():
         print("\nNo valid route found.")
         return
 
-    best = sorted(valid_metrics, key=lambda x: x.total_cost)[0]
+    # 평가 기준: total_cost → move_time → exec_time → memory
+    sorted_metrics = sorted(
+        valid_metrics,
+        key=lambda x: (x.total_cost, x.total_move_time, x.execution_time, x.memory_used)
+    )
+
+    best = sorted_metrics[0]
+    second_best = sorted_metrics[1] if len(sorted_metrics) > 1 else None
 
     print("\n" + "="*100)
     print("Optimal Route Details")
     print("="*100)
 
-    # 경로가 메인 입구(0)로 끝나지 않으면 강제로 원점 회귀
+    # 경로가 메인 입구로 끝나지 않으면 강제로 원점 회귀
     route_nodes = list(best.path)
     if route_nodes[-1] != 0:
         route_nodes.append(0)
 
-    # 실제 경로 재구성 (중간 경유 노드 포함)
+    # 중간 경유 노드 포함한 실제 노드 재구성
     print("\n[Reconstructing full path with intermediate nodes...]")
     final_path = []
 
@@ -261,13 +272,7 @@ def main():
             # predecessor를 사용하여 경로 재구성
             segment = reconstruct_path(predecessors[source], source, target)
 
-            if segment:
-                # 첫 번째 노드는 이미 final_path에 있으므로 제외
-                final_path.extend(segment[1:])
-            else:
-                # 경로를 찾을 수 없는 경우 (이론상 발생하지 않아야 함)
-                print(f"    Warning: No path found from {source} to {target}")
-                final_path.append(target)
+            final_path.extend(segment[1:])
 
     print(f"    Original route: {len(route_nodes)} stops")
     print(f"    Full path with intermediate nodes: {len(final_path)} stops")
@@ -276,7 +281,7 @@ def main():
     meal_time = 0
     show_time = 0
 
-    # route_nodes (실제 방문 목적지)만 대기시간 계산
+    # route_nodes 만 대기시간 계산
     route_set = set(route_nodes)
     for nid in final_path:
         if nid in route_set:
@@ -300,7 +305,7 @@ def main():
         print(f"  - Show Time: {show_time:.2f}분")
     print(f"\nRoute:")
 
-    # 경로 출력 (목적지와 중간 경유 노드 구분)
+    # 경로 출력
     for i, nid in enumerate(final_path):
         node = graph.get_node(nid)
         name = node.name
@@ -328,7 +333,7 @@ def main():
                 print(f"  {i+1}. {name} (대기 {wait}분)")
         else:
             # 중간 경유 노드
-            print(f"  {i+1}. [{name}] (경유)")
+            print(f"  {i+1}. [{name} 경유]")
 
     print("\n" + "="*100 + "\n")
 
@@ -352,9 +357,39 @@ def main():
             output_dir=output_dir,
             destination_nodes=route_nodes
         )
+
+        # 2등 알고리즘도 시각화
+        if second_best is not None:
+            print(f"\n[Visualizing second-best algorithm: {second_best.algorithm_name}...]")
+
+            second_route_nodes = list(second_best.path)
+            if second_route_nodes[-1] != 0:
+                second_route_nodes.append(0)
+
+            second_final_path = []
+            for i in range(len(second_route_nodes)):
+                if i == 0:
+                    second_final_path.append(second_route_nodes[i])
+                else:
+                    source = second_route_nodes[i-1]
+                    target = second_route_nodes[i]
+                    segment = reconstruct_path(predecessors[source], source, target)
+                    if segment:
+                        second_final_path.extend(segment[1:])
+                    else:
+                        second_final_path.append(target)
+
+            visualize_path(
+                graph=graph,
+                path=second_final_path,
+                usable_nodes=usable_nodes,
+                algorithm_name=second_best.algorithm_name,
+                output_path=os.path.join(output_dir, f'path_{second_best.algorithm_name.replace(" ", "_").lower()}.png'),
+                destination_nodes=second_route_nodes
+            )
+
     except Exception as e:
         print(f"Warning: Visualization failed: {e}")
-        print("(You may need to install matplotlib: pip install matplotlib)")
 
     print("\n" + "="*100 + "\n")
 

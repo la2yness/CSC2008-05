@@ -109,6 +109,10 @@ def evaluate_algorithm(
         **kwargs
     )
 
+    # 시작 노드로 돌아가지 않으면 순환 경로 추가
+    if path and len(path) > 0 and path[-1] != start_node:
+        path = path + [start_node]
+
     # 실행 시간 측정 종료
     end_time = time.perf_counter()
     execution_time = end_time - start_time
